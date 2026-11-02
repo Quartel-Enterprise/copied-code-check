@@ -1,0 +1,7 @@
+{
+  "path": ["scripts"],
+  "format": ["javascript"],
+  "minTokens": 70,
+  "gitignore": true,
+  "silent": true
+}

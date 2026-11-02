@@ -1,0 +1,15 @@
+version: 2
+updates:
+  # The jscpd the check runs: a bump lands in the next release of the check.
+  - package-ecosystem: npm
+    directory: /jscpd
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: chore
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: chore

@@ -1,0 +1,42 @@
+name: 'Look for copied code'
+description: >-
+  Runs the project's scripts/cpd.sh wrapper with this release of the check, fails on copied code the project's
+  .jscpd-baseline.json doesn't list, and warns when the baseline takes in copied code against the base branch.
+
+inputs:
+  script:
+    description: 'The wrapper that runs the check.'
+    required: false
+    default: './scripts/cpd.sh'
+  base-branch:
+    description: >-
+      The branch whose baseline the warning compares with: the pull request's base by default, else the
+      repository's default branch.
+    required: false
+    default: ''
+
+runs:
+  using: "composite"
+  steps:
+    - name: Set up Node
+      uses: actions/setup-node@v6
+      with:
+        node-version: '24'
+
+    # Why: a shallow checkout has no other branch, and the baseline of the base branch is what the warning needs.
+    - name: Fetch the baseline of the base branch
+      shell: bash
+      env:
+        BASE: ${{ inputs.base-branch || github.base_ref || github.event.repository.default_branch }}
+      run: |
+        git fetch --depth=1 origin "$BASE"
+        git show FETCH_HEAD:.jscpd-baseline.json > "$RUNNER_TEMP/jscpd-baseline-base.json" 2> /dev/null \
+          || echo '{}' > "$RUNNER_TEMP/jscpd-baseline-base.json"
+
+    # Why: the check of this action's own files, so CI never downloads what the runner already checked out.
+    - name: Look for copied code
+      shell: bash
+      env:
+        CPD_RUNNER_DIR: ${{ github.action_path }}
+        SCRIPT: ${{ inputs.script }}
+      run: '"$SCRIPT" --base "$RUNNER_TEMP/jscpd-baseline-base.json"'
