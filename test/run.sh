@@ -128,7 +128,7 @@ unset CPD_RUNNER_DIR
 mkdir -p "$PROJECT/.github/workflows"
 printf 'steps:\n  - uses: Quartel-Enterprise/copied-code-check@main\n' > "$PROJECT/.github/workflows/a.yml"
 run
-expect "the wrapper refuses a branch" 1 "have to use one release of the check"
+expect "the wrapper refuses a branch" 1 "has to pin one release of it"
 printf 'steps:\n  - uses: Quartel-Enterprise/copied-code-check@1.0.0\n' > "$PROJECT/.github/workflows/a.yml"
 printf 'steps:\n  - uses: Quartel-Enterprise/copied-code-check@1.0.1\n' > "$PROJECT/.github/workflows/b.yml"
 run
@@ -137,10 +137,10 @@ expect "the wrapper refuses two releases" 1 "Found: '1.0.0 1.0.1'"
 printf 'steps:\n  - run: echo no pin\n' > "$PROJECT/.github/workflows/a.yml"
 rm "$PROJECT/.github/workflows/b.yml"
 run
-expect "the wrapper explains a missing pin" 1 "have to use one release of the check"
+expect "the wrapper explains a missing pin" 1 "has to pin one release of it"
 rm -rf "$PROJECT/.github"
 run
-expect "the wrapper explains a project without workflows" 1 "have to use one release of the check"
+expect "the wrapper explains a project without workflows" 1 "has to pin one release of it"
 
 # The download path, as a developer and release.yml run it: a release tarball, cached once, by runs started together.
 new_project downloaded
@@ -179,6 +179,24 @@ fi
 rm "$WORK/cache/9.9.9/scripts/cpd.sh"
 run
 expect "a cached release missing its runner is downloaded again" 1 "New copied code in src/First.kt"
+if [ "$(find "$WORK/cache" -mindepth 1 -maxdepth 1 | wc -l)" -ne 2 ]; then
+    echo "❌ the broken release stayed in the cache:"
+    find "$WORK/cache" -mindepth 1 -maxdepth 1
+    failures=$((failures + 1))
+fi
+
+STATUS=0
+OUTPUT="$(cd "$PROJECT" && CPD_CACHE_DIR=relative-cache ./scripts/cpd.sh 2>&1)" || STATUS=$?
+expect "a relative CPD_CACHE_DIR caches a release that runs" 1 "New copied code in src/First.kt"
+
+unset CPD_DOWNLOAD_URL CPD_CACHE_DIR
+export CPD_RUNNER_DIR="$HERE" CPD_EXPECTED_VERSION=9.9.9
+run
+expect "the action's ref matching the pin runs the check" 1 "New copied code in src/First.kt"
+export CPD_EXPECTED_VERSION=9.9.8
+run
+expect "the action's ref differing from the pin fails" 1 "The workflows pin the check 9.9.9, but CI runs 9.9.8"
+unset CPD_EXPECTED_VERSION
 
 if [ "$failures" -gt 0 ]; then
     echo "❌ $failures failed"
