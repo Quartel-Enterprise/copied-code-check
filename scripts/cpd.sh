@@ -49,8 +49,9 @@ fi
 # The jscpd release jscpd/package.json pins, with every dependency its lockfile locks. Installed again only when
 # the lockfile changed since the last install.
 TOOL="$HERE/jscpd"
+# Why: from the tool's own directory, as npm 11 refuses `npm ci --prefix` from another one ("Missing: jscpd@").
 if ! cmp -s "$TOOL/package-lock.json" "$TOOL/node_modules/.installed-lock.json"; then
-    npm ci --prefix "$TOOL" --no-audit --no-fund --loglevel=error
+    (cd "$TOOL" && npm ci --no-audit --no-fund --loglevel=error)
     cp "$TOOL/package-lock.json" "$TOOL/node_modules/.installed-lock.json"
 fi
 

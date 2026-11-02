@@ -6,7 +6,11 @@ set -euo pipefail
 HERE="$(CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." > /dev/null && pwd)"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
-export CPD_RUNNER_DIR="$HERE"
+# Why: a fresh copy, as a project gets it, so the first run installs jscpd like a release's first run does.
+export CPD_RUNNER_DIR="$WORK/runner"
+mkdir -p "$CPD_RUNNER_DIR/jscpd"
+cp -R "$HERE/scripts" "$CPD_RUNNER_DIR/"
+cp "$HERE/jscpd/package.json" "$HERE/jscpd/package-lock.json" "$CPD_RUNNER_DIR/jscpd/"
 
 failures=0
 OUTPUT=""
