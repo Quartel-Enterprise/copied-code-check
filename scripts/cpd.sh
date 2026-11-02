@@ -46,21 +46,30 @@ if ! command -v npm > /dev/null || ! command -v node > /dev/null \
     exit 1
 fi
 
-# The jscpd release jscpd/package.json pins, with every dependency its lockfile locks. Installed again only when
-# the lockfile changed since the last install.
+# The jscpd release jscpd/package.json pins, with every dependency its lockfile locks, installed once per lockfile.
+# Why: in a directory of its own, so an install never touches one a concurrent run is using, published by a symlink
+# that exists only once the install is whole. From the install's own directory, as npm 11 refuses
+# `npm ci --prefix` from another one ("Missing: jscpd@").
 TOOL="$HERE/jscpd"
-# Why: from the tool's own directory, as npm 11 refuses `npm ci --prefix` from another one ("Missing: jscpd@").
-if ! cmp -s "$TOOL/package-lock.json" "$TOOL/node_modules/.installed-lock.json"; then
-    (cd "$TOOL" && npm ci --no-audit --no-fund --loglevel=error)
-    cp "$TOOL/package-lock.json" "$TOOL/node_modules/.installed-lock.json"
+INSTALL="$TOOL/.installed-$(cksum < "$TOOL/package-lock.json" | awk '{print $1}')"
+STAGE=""
+REPORT=""
+trap 'rm -rf "$STAGE" "$REPORT"' EXIT
+if [ ! -x "$INSTALL/node_modules/.bin/jscpd" ]; then
+    rm -rf "$INSTALL"
+    STAGE="$(mktemp -d "$TOOL/.install.XXXXXX")"
+    cp "$TOOL/package.json" "$TOOL/package-lock.json" "$STAGE/"
+    (cd "$STAGE" && npm ci --no-audit --no-fund --loglevel=error)
+    if ln -sn "$STAGE" "$INSTALL" 2> /dev/null; then
+        STAGE=""
+    fi
 fi
 
 REPORT="$(mktemp -d)"
-trap 'rm -rf "$REPORT"' EXIT
 
 # Why: the check reads one JSON report with absolute paths, so the reporter, its directory and the paths are set
 # here, whatever the project's .jscpd.json says about them.
-if ! "$TOOL/node_modules/.bin/jscpd" --config .jscpd.json --reporters json --output "$REPORT" --absolute; then
+if ! "$INSTALL/node_modules/.bin/jscpd" --config .jscpd.json --reporters json --output "$REPORT" --absolute; then
     echo "❌ jscpd failed: see its error above, or set \"silent\" to false in .jscpd.json for more"
     exit 1
 fi

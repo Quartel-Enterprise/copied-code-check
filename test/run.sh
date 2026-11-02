@@ -134,6 +134,52 @@ printf 'steps:\n  - uses: Quartel-Enterprise/copied-code-check@1.0.1\n' > "$PROJ
 run
 expect "the wrapper refuses two releases" 1 "Found: '1.0.0 1.0.1'"
 
+printf 'steps:\n  - run: echo no pin\n' > "$PROJECT/.github/workflows/a.yml"
+rm "$PROJECT/.github/workflows/b.yml"
+run
+expect "the wrapper explains a missing pin" 1 "have to use one release of the check"
+rm -rf "$PROJECT/.github"
+run
+expect "the wrapper explains a project without workflows" 1 "have to use one release of the check"
+
+# The download path, as a developer and release.yml run it: a release tarball, cached once, by runs started together.
+new_project downloaded
+{ echo "package a"; echo; kotlin_copy; } > "$PROJECT/src/First.kt"
+{ echo "package b"; echo; kotlin_copy; } > "$PROJECT/src/Second.kt"
+mkdir -p "$PROJECT/.github/workflows" "$WORK/releases" "$WORK/release/copied-code-check-9.9.9"
+cat > "$PROJECT/.github/workflows/duplication.yml" << 'YML'
+# Pinned below, not here: Quartel-Enterprise/copied-code-check@0.0.1
+jobs:
+  duplication:
+    steps:
+      # - uses: Quartel-Enterprise/copied-code-check@0.0.2
+      - uses: 'Quartel-Enterprise/copied-code-check@9.9.9'
+YML
+cp -R "$HERE/scripts" "$HERE/jscpd" "$WORK/release/copied-code-check-9.9.9/"
+rm -rf "$WORK/release/copied-code-check-9.9.9/jscpd/node_modules" "$WORK/release/copied-code-check-9.9.9/jscpd/".install*
+tar -czf "$WORK/releases/9.9.9" -C "$WORK/release" copied-code-check-9.9.9
+export CPD_DOWNLOAD_URL="file://$WORK/releases" CPD_CACHE_DIR="$WORK/cache"
+(code=0; cd "$PROJECT" && ./scripts/cpd.sh > "$WORK/first.log" 2>&1 || code=$?; echo "$code" > "$WORK/first.status") &
+(code=0; cd "$PROJECT" && ./scripts/cpd.sh > "$WORK/second.log" 2>&1 || code=$?; echo "$code" > "$WORK/second.status") &
+wait
+for log in first second; do
+    STATUS="$(cat "$WORK/$log.status")"
+    OUTPUT="$(cat "$WORK/$log.log")"
+    expect "two runs caching a release at once both check ($log)" 1 "New copied code in src/First.kt"
+done
+STATUS=0
+OUTPUT="$(find "$WORK/cache" -mindepth 1 -maxdepth 1; find -L "$WORK/cache/9.9.9/jscpd" -mindepth 1 -maxdepth 1 -name '.install*')"
+expect "the cache keeps one copy of the release" 0 "$WORK/cache/9.9.9"
+if [ "$(find "$WORK/cache" -mindepth 1 -maxdepth 1 | wc -l)" -ne 2 ] \
+    || [ "$(find -L "$WORK/cache/9.9.9/jscpd" -mindepth 1 -maxdepth 1 -name '.install*' | wc -l)" -ne 2 ]; then
+    echo "❌ the cache holds a leftover copy:"
+    echo "$OUTPUT"
+    failures=$((failures + 1))
+fi
+rm "$WORK/cache/9.9.9/scripts/cpd.sh"
+run
+expect "a cached release missing its runner is downloaded again" 1 "New copied code in src/First.kt"
+
 if [ "$failures" -gt 0 ]; then
     echo "❌ $failures failed"
     exit 1

@@ -15,6 +15,7 @@
 # Environment:
 #   CPD_RUNNER_DIR  a checkout of copied-code-check to run instead of the pinned release (CI, or to try a change)
 #   CPD_CACHE_DIR   where releases are cached (default ~/.cache/copied-code-check)
+#   CPD_DOWNLOAD_URL  where release tarballs are downloaded from, as <url>/<version> (tests)
 
 set -eo pipefail
 
@@ -22,8 +23,9 @@ ROOT="$(CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." > /dev/null && pw
 RUNNER_DIR="$CPD_RUNNER_DIR"
 
 if [ -z "$RUNNER_DIR" ]; then
-    VERSIONS="$(grep -rhoE 'Quartel-Enterprise/copied-code-check@[^[:space:]"'\'']+' "$ROOT/.github/workflows" \
-        2> /dev/null | sed 's/.*@//' | sort -u)"
+    # Why: only uses: lines, so a comment or a commented-out step that names the action pins nothing.
+    VERSIONS="$( (grep -rhE '^[[:space:]]*(-[[:space:]]+)?uses:[[:space:]]*["'\'']?Quartel-Enterprise/copied-code-check@' \
+        "$ROOT/.github/workflows" 2> /dev/null || true) | sed -E 's/.*copied-code-check@([^[:space:]"'\'']*).*/\1/' | sort -u)"
 
     # A release version, never a branch: its files are cached for good, and release tags never move
     if ! [[ "$VERSIONS" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
@@ -32,22 +34,24 @@ if [ -z "$RUNNER_DIR" ]; then
         exit 1
     fi
 
-    RUNNER_DIR="${CPD_CACHE_DIR:-$HOME/.cache/copied-code-check}/$VERSIONS"
+    CACHE="${CPD_CACHE_DIR:-$HOME/.cache/copied-code-check}"
+    RUNNER_DIR="$CACHE/$VERSIONS"
     if [ ! -f "$RUNNER_DIR/scripts/cpd.sh" ]; then
-        mkdir -p "$(dirname "$RUNNER_DIR")"
-        TMP="$(mktemp -d "$RUNNER_DIR.XXXXXX")"
-        if ! curl -fsSL "https://codeload.github.com/Quartel-Enterprise/copied-code-check/tar.gz/refs/tags/$VERSIONS" \
+        # A cached release missing its runner was left broken by hand: download it again
+        rm -rf "$RUNNER_DIR"
+        mkdir -p "$CACHE"
+        TMP="$(mktemp -d "$CACHE/.$VERSIONS.XXXXXX")"
+        trap 'rm -rf "$TMP"' EXIT
+        if ! curl -fsSL "${CPD_DOWNLOAD_URL:-https://codeload.github.com/Quartel-Enterprise/copied-code-check/tar.gz/refs/tags}/$VERSIONS" \
             | tar -xz --strip-components=1 -C "$TMP"; then
-            rm -rf "$TMP"
             echo "❌ Failed to download the copied-code check $VERSIONS"
             exit 1
         fi
-        # Why: a concurrent run may have cached the same release first; its copy is as good as this one.
-        if [ -e "$RUNNER_DIR" ]; then
-            rm -rf "$TMP"
-        else
-            mv "$TMP" "$RUNNER_DIR"
-        fi
+        # Why: a symlink is created only when nothing is at its path, so of two runs caching one release at once,
+        # exactly one publishes its download, whole, and the other drops its own.
+        # Why: exec below skips the EXIT trap, so the copy that lost is dropped here.
+        ln -sn "$TMP" "$RUNNER_DIR" 2> /dev/null || rm -rf "$TMP"
+        trap - EXIT
     fi
 fi
 

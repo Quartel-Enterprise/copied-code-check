@@ -20,7 +20,7 @@ A project keeps three files and one workflow step:
 ```bash
 mkdir -p scripts
 curl -fsSLo scripts/cpd.sh \
-  https://raw.githubusercontent.com/Quartel-Enterprise/copied-code-check/refs/tags/1.0.0/consumer/cpd.sh
+  https://raw.githubusercontent.com/Quartel-Enterprise/copied-code-check/refs/tags/1.0.1/consumer/cpd.sh
 chmod +x scripts/cpd.sh
 ```
 
@@ -52,7 +52,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - uses: Quartel-Enterprise/copied-code-check@1.0.0
+      - uses: Quartel-Enterprise/copied-code-check@1.0.1
 ```
 
 The `uses:` line is the one place a project pins the release: the wrapper reads it from the workflows under
@@ -83,8 +83,9 @@ merge forever.
 ./scripts/cpd.sh --update-baseline --allow-new  # also take more copied code in, only when the copy is on purpose
 ```
 
-It needs Node.js 18 or later. The first run of a release downloads it into `~/.cache/copied-code-check` and
-installs the jscpd release it locks, with every dependency.
+It needs Node.js 18 or later. The first run of a release also needs `curl`, `tar` and access to github.com: it
+downloads the release into `~/.cache/copied-code-check` and installs the jscpd release it locks, with every
+dependency. In CI the action runs its own files, so nothing is downloaded.
 
 - **Lines of a file, not clones.** With the same code in three files, which pairs jscpd reports depends on the
   order it reads them, and an edit inside a long clone can split it into two shorter ones. The lines a file has

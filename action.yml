@@ -27,7 +27,7 @@ runs:
     - name: Fetch the baseline of the base branch
       shell: bash
       env:
-        BASE: ${{ inputs.base-branch || github.base_ref || github.event.repository.default_branch }}
+        BASE: ${{ inputs.base-branch || github.base_ref || github.event.repository.default_branch || 'main' }}
       run: |
         git fetch --depth=1 origin "$BASE"
         git show FETCH_HEAD:.jscpd-baseline.json > "$RUNNER_TEMP/jscpd-baseline-base.json" 2> /dev/null \
