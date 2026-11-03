@@ -4,7 +4,8 @@ Stops new copied code from merging. Each pull request is checked with [jscpd](ht
 against a baseline of the copies the project already has, and that baseline can only shrink. The check runs the
 same way on a developer machine (`./scripts/cpd.sh`) and in CI (a GitHub Action).
 
-It was built for Kotlin Multiplatform apps with Swift and TypeScript UIs, and works on any language jscpd knows.
+It works on any language jscpd supports, from an app to a backend service. In Kotlin, Swift and TypeScript it also
+leaves out `package` lines and imports, which many files share without anyone copying them.
 
 ## How it works
 
@@ -12,8 +13,8 @@ It was built for Kotlin Multiplatform apps with Swift and TypeScript UIs, and wo
 
 ```json
 {
-  "feature/day/src/commonMain/kotlin/DayViewModel.kt": 12,
-  "feature/plan/src/commonMain/kotlin/PlanViewModel.kt": 12
+  "src/orders/OrderService.kt": 12,
+  "src/invoices/InvoiceService.kt": 12
 }
 ```
 
@@ -80,18 +81,21 @@ curl -fsSLo scripts/cpd.sh \
 chmod +x scripts/cpd.sh
 ```
 
-**3. What to scan.** Add `.jscpd.json` with your own source folders, languages and the files to leave out:
+**3. What to scan.** Add `.jscpd.json` with your own source folders, languages and the files to leave out. For a
+Kotlin service with a TypeScript front end, for example:
 
 ```json
 {
-  "path": ["shared/src", "androidApp/src", "iosApp", "webApp/src"],
-  "format": ["kotlin", "swift", "tsx"],
+  "path": ["server/src/main", "web/src"],
+  "format": ["kotlin", "tsx"],
   "formatsExts": { "tsx": ["ts", "tsx"] },
   "minTokens": 70,
-  "ignore": ["**/build/**", "**/node_modules/**", "**/*Test.kt", "**/*Tests.swift", "**/*.test.ts"],
+  "ignore": ["**/build/**", "**/node_modules/**", "**/*.test.ts", "**/*.test.tsx"],
   "gitignore": true
 }
 ```
+
+`formatsExts` makes `.ts` and `.tsx` one language, so a copy between them is found too.
 
 These are jscpd's [config file options](https://github.com/kucherenko/jscpd/blob/master/docs/rust.md), and
 `format` takes any of its [supported formats](https://github.com/kucherenko/jscpd/blob/master/FORMATS.md). Every
@@ -156,11 +160,11 @@ raises a warning and lists each file in the job summary, so the reviewer sees it
 - **Only code.** Blank lines and comments are left out, and so are `package` lines and imports in Kotlin, Swift and
   TypeScript, where many files start the same way. In other languages imports count as code. A clone with fewer
   than 5 lines of code left is not counted.
-- **One language at a time.** jscpd only compares files of the same language, so a screen drawn once with Compose
-  and once with SwiftUI is never a clone.
+- **One language at a time.** jscpd only compares files of the same language, so the same rule written once in
+  Kotlin and once in TypeScript is never a clone.
 - **Moved files.** A file moved with its copied code is a new path with the same copied lines as a listed path that
   is gone, and the same name: the part before the first dot plus the extension. So `Foo.android.kt` moved to
-  `Foo.nonIos.kt` is a move, but `Foo.kt` to `Bar.kt` or `Foo.swift` isn't. The check fails until
+  `Foo.jvm.kt` is a move, but `Foo.kt` to `Bar.kt` or `Foo.swift` isn't. The check fails until
   `--update-baseline` records the move. A renamed file counts as new copied code and needs `--allow-new`.
 
 ### Action inputs
