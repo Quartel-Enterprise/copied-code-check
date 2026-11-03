@@ -20,7 +20,7 @@ A project keeps three files and one workflow step:
 ```bash
 mkdir -p scripts
 curl -fsSLo scripts/cpd.sh \
-  https://raw.githubusercontent.com/Quartel-Enterprise/copied-code-check/refs/tags/1.0.2/consumer/cpd.sh
+  https://raw.githubusercontent.com/Quartel-Enterprise/copied-code-check/refs/tags/1.0.3/consumer/cpd.sh
 chmod +x scripts/cpd.sh
 ```
 
@@ -52,7 +52,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - uses: Quartel-Enterprise/copied-code-check@1.0.2
+      - uses: Quartel-Enterprise/copied-code-check@1.0.3
 ```
 
 The `uses:` line is the one place a project pins the release: the wrapper reads it from the workflows under
